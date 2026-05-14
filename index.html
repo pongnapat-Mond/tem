@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>BPM Analyzer</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/music-tempo@1.0.3/dist/browser/music-tempo.min.js"></script>
+    
+    <style>
+      
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BPM Tempo Map</h1>
+        <input type="file" id="upload" accept="audio/*">
+        <div id="status"></div>
+        <canvas id="bpmChart"></canvas>
+    </div>
+
+    <script>
+        const upload = document.getElementById('upload');
+        const status = document.getElementById('status');
+        let chart = null;
+
+        upload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+          
+            if (typeof MusicTempo === 'undefined') {
+                alert("Library ยังไม่โหลด! กรุณาลองปิด Adblock หรือเช็กการเชื่อมต่อเน็ต");
+                return;
+            }
+
+            try {
+                status.innerText = "waiting for file...";
+                const arrayBuffer = await file.arrayBuffer();
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                
+                const channelData = audioBuffer.getChannelData(0);
+                const sampleRate = audioBuffer.sampleRate;
+                const segmentDuration = 5; 
+                const step = segmentDuration * sampleRate;
+                
+                let bpmData = [];
+                let labels = [];
+
+                for (let i = 0; i < channelData.length; i += step) {
+                    const segment = channelData.slice(i, i + step);
+                    if (segment.length < sampleRate * 2) continue;
+
+                    const mt = new MusicTempo(segment);
+                    if (mt.tempo > 0) {
+                        bpmData.push(Math.round(mt.tempo));
+                        labels.push(`${Math.floor(i / sampleRate)}s`);
+                    }
+                }
+
+                renderChart(labels, bpmData);
+                status.innerText = `finish: ${Math.floor(audioBuffer.duration)} วินาที`;
+                
+            } catch (err) {
+                console.error(err);
+                status.innerText = "error: " + err.message;
+            }
+        });
+
+        function renderChart(labels, data) {
+            const ctx = document.getElementById('bpmChart').getContext('2d');
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'BPM Over Time',
+                        data: data,
+                        borderColor: '#00ff88',
+                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    scales: { y: { min: 60, max: 200 } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

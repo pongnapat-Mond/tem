@@ -1,0 +1,12 @@
+{
+  "name": "bpm-detector",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "asciichart": "^1.5.25",
+    "chart.js": "^4.5.1",
+    "music-tempo": "^1.0.3",
+    "node-web-audio-api": "^1.0.9",
+    "web-audio-api": "^0.2.2"
+  }
+}
