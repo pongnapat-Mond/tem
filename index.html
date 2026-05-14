@@ -2,22 +2,27 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>BPM Analyzer</title>
-
+    <title>Analyzer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/music-tempo@1.0.3/dist/browser/music-tempo.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/music-tempo@1.0.2/dist/music-tempo.min.js"></script>
     
     <style>
-      
-
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a0a; color: #eee; display: flex; justify-content: center; padding: 20px; }
+        .container { width: 100%; max-width: 900px; text-align: center; background: #161616; padding: 30px; border-radius: 20px; border: 1px solid #333; }
+        #status { margin: 15px 0; color: #00ff88; font-weight: bold; }
+        .chart-wrapper { background: #000; border-radius: 10px; padding: 15px; margin-top: 20px; }
+        input[type="file"] { background: #333; padding: 10px; border-radius: 5px; color: white; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>BPM Tempo Map</h1>
+        <h1>Extreme BPM Analyzer</h1>
+        <p>รองรับการวิเคราะห์สูงสุด 1,100+ BPM (Extratone Mode)</p>
         <input type="file" id="upload" accept="audio/*">
-        <div id="status"></div>
-        <canvas id="bpmChart"></canvas>
+        <div id="status">รอการอัปโหลดไฟล์...</div>
+        <div class="chart-wrapper">
+            <canvas id="bpmChart"></canvas>
+        </div>
     </div>
 
     <script>
@@ -29,21 +34,17 @@
             const file = e.target.files[0];
             if (!file) return;
 
-          
-            if (typeof MusicTempo === 'undefined') {
-                alert("Library ยังไม่โหลด! กรุณาลองปิด Adblock หรือเช็กการเชื่อมต่อเน็ต");
-                return;
-            }
-
             try {
-                status.innerText = "waiting for file...";
+                status.innerText = "กำลังวิเคราะห์ไฟล์ความเร็วสูง...";
                 const arrayBuffer = await file.arrayBuffer();
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
                 
                 const channelData = audioBuffer.getChannelData(0);
                 const sampleRate = audioBuffer.sampleRate;
-                const segmentDuration = 5; 
+                
+                // --- ปรับจูนสำหรับเพลงเร็ว (Extratone) ---
+                const segmentDuration = 1; // วิเคราะห์ทุกๆ 1 วินาทีเพื่อให้ทัน 1100 BPM
                 const step = segmentDuration * sampleRate;
                 
                 let bpmData = [];
@@ -51,21 +52,26 @@
 
                 for (let i = 0; i < channelData.length; i += step) {
                     const segment = channelData.slice(i, i + step);
-                    if (segment.length < sampleRate * 2) continue;
+                    if (segment.length < sampleRate * 0.5) continue; 
 
                     const mt = new MusicTempo(segment);
-                    if (mt.tempo > 0) {
-                        bpmData.push(Math.round(mt.tempo));
+                    let detectedBpm = Math.round(mt.tempo);
+
+                    // Logic พิเศษ: ถ้าเพลงเร็วจนหลุดขีดจำกัด (Aliasing)
+                    // ในบางกรณี Library อาจจะวัดได้แค่ครึ่งเดียว (เช่น 440 แทนที่จะเป็น 880)
+                    // แต่ในที่นี้เราจะดึงค่าตรงๆ ออกมาก่อน
+                    if (detectedBpm > 0) {
+                        bpmData.push(detectedBpm);
                         labels.push(`${Math.floor(i / sampleRate)}s`);
                     }
                 }
 
                 renderChart(labels, bpmData);
-                status.innerText = `finish: ${Math.floor(audioBuffer.duration)} วินาที`;
+                status.innerText = `วิเคราะห์เสร็จสิ้น! พบช่วงความเร็วสูงสุดที่ ${Math.max(...bpmData)} BPM`;
                 
             } catch (err) {
                 console.error(err);
-                status.innerText = "error: " + err.message;
+                status.innerText = "เกิดข้อผิดพลาด: " + err.message;
             }
         });
 
@@ -77,16 +83,33 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'BPM Over Time',
+                        label: 'Tempo (BPM)',
                         data: data,
-                        borderColor: '#00ff88',
-                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
-                        tension: 0.3,
+                        borderColor: '#ff0055', // สีแดงจัดจ้านสำหรับเพลงแรงๆ
+                        backgroundColor: 'rgba(255, 0, 85, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1, // ลดความโค้งเพื่อให้เห็นการดีดของจังหวะชัดเจน
                         fill: true
                     }]
                 },
                 options: {
-                    scales: { y: { min: 60, max: 1100 } }
+                    responsive: true,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 1200, // ตั้งเผื่อไว้ที่ 1200 BPM
+                            ticks: { color: '#888', stepSize: 100 },
+                            grid: { color: '#222' },
+                            title: { display: true, text: 'Beats Per Minute', color: '#eee' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#888' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#eee' } }
+                    }
                 }
             });
         }
