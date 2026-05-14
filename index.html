@@ -1,92 +1,388 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extreme BPM Analyzer - Vercel Test</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="./music-tempo.min.js"></script>
-    
-    <style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BPM Tempo Analyzer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    </style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f3;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #1a1a18; color: #e8e8e4; }
+      .card { background: #242422; border-color: rgba(255,255,255,0.1); }
+      .upload-zone { background: #2a2a28; border-color: rgba(255,255,255,0.18); }
+      .upload-zone:hover { background: #303030; }
+      .upload-zone.drag { background: rgba(29,158,117,0.12); }
+      .stat-card { background: #2a2a28; }
+      .stat-label { color: rgba(255,255,255,0.5); }
+      .progress-bar-bg { background: rgba(255,255,255,0.08); }
+      .status-text { color: rgba(255,255,255,0.55); }
+      .error-box { background: rgba(220,60,60,0.12); border-color: rgba(220,60,60,0.3); }
+      .error-text { color: #f47272; }
+      h1 { color: #e8e8e4; }
+      .subtitle { color: rgba(255,255,255,0.45); }
+    }
+
+    .container { width: 100%; max-width: 760px; }
+
+    header { margin-bottom: 2rem; }
+    h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+    .subtitle { font-size: 14px; color: rgba(0,0,0,0.45); }
+
+    .card {
+      background: #fff;
+      border: 0.5px solid rgba(0,0,0,0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .upload-zone {
+      border: 1.5px dashed rgba(0,0,0,0.2);
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.15s;
+      background: #f9f9f7;
+    }
+    .upload-zone:hover { background: #f1f1ef; }
+    .upload-zone.drag { border-color: #1D9E75; background: rgba(29,158,117,0.07); }
+    .upload-zone i { font-size: 36px; color: rgba(0,0,0,0.3); display: block; margin-bottom: 10px; }
+    .upload-zone p { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+    .upload-zone span { font-size: 13px; color: rgba(0,0,0,0.45); }
+
+    .status-row {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-top: 1.25rem;
+    }
+    .status-icon { font-size: 16px; color: #1D9E75; }
+    .status-text { font-size: 14px; color: rgba(0,0,0,0.5); }
+    .progress-bar-bg {
+      height: 3px;
+      background: rgba(0,0,0,0.07);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #1D9E75;
+      border-radius: 2px;
+      transition: width 0.25s ease;
+    }
+
+    .stats-grid {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      margin-bottom: 1.25rem;
+    }
+    .stat-card {
+      background: #f5f5f3;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .stat-label { font-size: 12px; color: rgba(0,0,0,0.45); margin-bottom: 2px; }
+    .stat-val { font-size: 24px; font-weight: 500; }
+    .stat-val.accent { color: #1D9E75; }
+
+    .chart-card { display: none; }
+    canvas { display: block; width: 100% !important; height: 240px !important; }
+
+    .error-box {
+      display: none;
+      background: rgba(220,60,60,0.08);
+      border: 0.5px solid rgba(220,60,60,0.25);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .error-text { font-size: 14px; color: #c03030; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>BPM Analyzer</h1>
-        <input type="file" id="upload" accept="audio/*" style="display:none">
-        <button class="upload-btn" onclick="document.getElementById('upload').click()">เลือกไฟล์เพลง</button>
-        <div id="status">รอการอัปโหลด...</div>
-        <canvas id="bpmChart"></canvas>
+  <div class="container">
+    <header>
+      <h1>BPM Tempo Analyzer</h1>
+      <p class="subtitle">Upload an audio file to map its tempo over time</p>
+    </header>
+
+    <div class="card">
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('upload').click()">
+        <i class="ti ti-music"></i>
+        <p>Drop audio file here or click to browse</p>
+        <span>MP3, WAV, FLAC, AAC, OGG supported</span>
+      </div>
+      <input type="file" id="upload" accept="audio/*" style="display:none">
+
+      <div class="status-row" id="statusRow">
+        <i class="ti ti-loader-2 status-icon" id="statusIcon"></i>
+        <span class="status-text" id="statusText"></span>
+      </div>
+      <div class="progress-bar-bg" id="progressWrap" style="display:none">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+
+      <div class="error-box" id="errorBox">
+        <i class="ti ti-alert-circle" style="font-size:16px; color:#c03030; flex-shrink:0;"></i>
+        <span class="error-text" id="errorText"></span>
+      </div>
     </div>
 
-    <script>
-        const upload = document.getElementById('upload');
-        const status = document.getElementById('status');
-        let chart = null;
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-label">Avg BPM</div>
+        <div class="stat-val accent" id="statAvg">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Min BPM</div>
+        <div class="stat-val" id="statMin">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Max BPM</div>
+        <div class="stat-val" id="statMax">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Duration</div>
+        <div class="stat-val" id="statDur">—</div>
+      </div>
+    </div>
 
-        upload.addEventListener('change', async (e) => {
-            if (typeof MusicTempo === 'undefined') {
-                status.innerText = "Error: Library ยังไม่โหลด! ลองปิด Adblock หรือเปลี่ยน Browser";
-                return;
-            }
-            
-            const file = e.target.files[0];
-            if (!file) return;
+    <div class="card chart-card" id="chartCard">
+      <canvas id="bpmChart"></canvas>
+    </div>
+  </div>
 
-            try {
-                status.innerText = "กำลังประมวลผลไฟล์...";
-                const arrayBuffer = await file.arrayBuffer();
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                
-                const channelData = audioBuffer.getChannelData(0);
-                const sampleRate = audioBuffer.sampleRate;
-                const segmentDuration = 1; // ความละเอียดสูงสำหรับ Extratone
-                const step = segmentDuration * sampleRate;
-                
-                let bpmData = [];
-                let labels = [];
+  <script>
+    // ── Zero-dependency BPM detector ──────────────────────────────────────────
+    // Downsample → onset strength → autocorrelation → BPM
+    function detectBPM(pcm, sampleRate) {
+      const targetRate = 4000;
+      const ratio = Math.max(1, Math.floor(sampleRate / targetRate));
+      const ds = [];
+      for (let i = 0; i < pcm.length; i += ratio) ds.push(Math.abs(pcm[i]));
 
-                for (let i = 0; i < channelData.length; i += step) {
-                    const segment = channelData.slice(i, i + step);
-                    if (segment.length < sampleRate * 0.5) continue; 
-                    const mt = new MusicTempo(segment);
-                    if (mt.tempo > 0) {
-                        bpmData.push(Math.round(mt.tempo));
-                        labels.push(`${Math.floor(i / sampleRate)}s`);
-                    }
-                }
+      const onset = new Float32Array(ds.length);
+      for (let i = 1; i < ds.length; i++) {
+        const d = ds[i] - ds[i - 1];
+        onset[i] = d > 0 ? d : 0;
+      }
 
-                renderChart(labels, bpmData);
-                status.innerText = `เสร็จสิ้น! สูงสุด: ${Math.max(...bpmData)} BPM / เฉลี่ย: ${Math.round(new MusicTempo(channelData).tempo)} BPM`;
-            } catch (err) {
-                status.innerText = "เกิดข้อผิดพลาดในการอ่านไฟล์";
-            }
+      const effRate = sampleRate / ratio;
+      const minLag = Math.floor(effRate * 60 / 200);
+      const maxLag = Math.floor(effRate * 60 / 60);
+
+      let bestLag = minLag, bestCorr = -1;
+      for (let lag = minLag; lag <= maxLag; lag++) {
+        let corr = 0;
+        const n = onset.length - lag;
+        for (let i = 0; i < n; i++) corr += onset[i] * onset[i + lag];
+        if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+      }
+
+      return Math.round(60 / (bestLag / effRate));
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function tick() { return new Promise(r => setTimeout(r, 0)); }
+    function fmtTime(s) {
+      const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+    }
+
+    // ── Elements ───────────────────────────────────────────────────────────────
+    const upload      = document.getElementById('upload');
+    const dropZone    = document.getElementById('dropZone');
+    const statusRow   = document.getElementById('statusRow');
+    const statusIcon  = document.getElementById('statusIcon');
+    const statusText  = document.getElementById('statusText');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressBar = document.getElementById('progressBar');
+    const statsGrid   = document.getElementById('statsGrid');
+    const chartCard   = document.getElementById('chartCard');
+    const errorBox    = document.getElementById('errorBox');
+    const errorText   = document.getElementById('errorText');
+    let chart = null;
+
+    // ── Drag & drop ────────────────────────────────────────────────────────────
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag');
+      if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+    });
+    upload.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+    // ── Status helpers ─────────────────────────────────────────────────────────
+    function setStatus(msg, pct) {
+      statusRow.style.display = 'flex';
+      progressWrap.style.display = 'block';
+      statusText.textContent = msg;
+      progressBar.style.width = pct + '%';
+    }
+    function showError(msg) {
+      errorBox.style.display = 'flex';
+      errorText.textContent = msg;
+      statusIcon.className = 'ti ti-alert-circle status-icon';
+      statusIcon.style.color = '#c03030';
+    }
+
+    // ── Main processor ─────────────────────────────────────────────────────────
+    async function processFile(file) {
+      errorBox.style.display = 'none';
+      statsGrid.style.display = 'none';
+      chartCard.style.display = 'none';
+      statusIcon.className = 'ti ti-loader-2 status-icon';
+      statusIcon.style.color = '#1D9E75';
+
+      try {
+        setStatus(`Reading "${file.name}"…`, 5);
+        await tick();
+
+        const arrayBuffer = await file.arrayBuffer();
+        setStatus('Decoding audio…', 15);
+        await tick();
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+        const channelData = audioBuffer.getChannelData(0);
+        const sampleRate  = audioBuffer.sampleRate;
+        const segDur      = 8;
+        const step        = segDur * sampleRate;
+        const totalSegs   = Math.floor(channelData.length / step);
+
+        if (totalSegs === 0) { showError('Audio too short — need at least 8 seconds.'); return; }
+
+        const bpmData = [], labels = [];
+
+        for (let i = 0, seg = 0; i < channelData.length - step; i += step, seg++) {
+          const segment = channelData.slice(i, i + step);
+          const bpm = detectBPM(segment, sampleRate);
+          if (bpm >= 60 && bpm <= 200) {
+            bpmData.push(bpm);
+            labels.push(fmtTime(Math.floor(i / sampleRate)));
+          }
+          setStatus(`Analyzing segment ${seg + 1} / ${totalSegs}…`, 20 + Math.round(((seg + 1) / totalSegs) * 75));
+          await tick();
+        }
+
+        if (bpmData.length === 0) { showError('Could not detect tempo. Try a track with a clear beat.'); return; }
+
+        // Median smooth (window = 3)
+        const smoothed = bpmData.map((v, i, a) => {
+          const w = a.slice(Math.max(0, i - 1), i + 2).sort((x, y) => x - y);
+          return w[Math.floor(w.length / 2)];
         });
 
-        function renderChart(labels, data) {
-            const ctx = document.getElementById('bpmChart').getContext('2d');
-            if (chart) chart.destroy();
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'BPM',
-                        data: data,
-                        borderColor: '#0f8',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    scales: { y: { min: 0, max: 1200 } }
-                }
-            });
+        const avg = Math.round(smoothed.reduce((a, b) => a + b, 0) / smoothed.length);
+        const min = Math.min(...smoothed);
+        const max = Math.max(...smoothed);
+
+        document.getElementById('statAvg').textContent = avg;
+        document.getElementById('statMin').textContent = min;
+        document.getElementById('statMax').textContent = max;
+        document.getElementById('statDur').textContent = fmtTime(Math.floor(audioBuffer.duration));
+
+        statsGrid.style.display = 'grid';
+        chartCard.style.display = 'block';
+        renderChart(labels, smoothed, avg, min, max);
+
+        setStatus(`Done — ${smoothed.length} segments analyzed`, 100);
+        statusIcon.className = 'ti ti-circle-check status-icon';
+
+      } catch (err) {
+        console.error(err);
+        showError('Error: ' + err.message);
+      }
+    }
+
+    // ── Chart ─────────────────────────────────────────────────────────────────
+    function renderChart(labels, data, avg, min, max) {
+      if (typeof Chart === 'undefined') { showError('Chart.js failed to load.'); return; }
+      const ctx = document.getElementById('bpmChart').getContext('2d');
+      if (chart) chart.destroy();
+
+      const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const gridColor = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+      const tickColor = dark ? 'rgba(255,255,255,0.4)'  : 'rgba(0,0,0,0.4)';
+      const pad = 15;
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'BPM',
+              data,
+              borderColor: '#1D9E75',
+              backgroundColor: 'rgba(29,158,117,0.08)',
+              tension: 0.35,
+              fill: true,
+              pointRadius: data.length > 40 ? 0 : 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: '#1D9E75',
+              borderWidth: 2,
+            },
+            {
+              label: `Avg (${avg})`,
+              data: data.map(() => avg),
+              borderColor: 'rgba(29,158,117,0.4)',
+              borderDash: [5, 4],
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: false,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { labels: { color: tickColor, font: { size: 12 }, boxWidth: 16 } },
+            tooltip: {
+              callbacks: {
+                label: c => c.datasetIndex === 0 ? `BPM: ${c.parsed.y}` : `Avg: ${avg}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: tickColor, font: { size: 11 }, maxTicksLimit: 12 },
+              grid: { color: gridColor }
+            },
+            y: {
+              min: Math.max(40, min - pad),
+              max: max + pad,
+              ticks: { color: tickColor, font: { size: 11 }, callback: v => v + ' bpm' },
+              grid: { color: gridColor }
+            }
+          }
         }
-    </script>
+      });
+    }
+  </script>
 </body>
 </html>
